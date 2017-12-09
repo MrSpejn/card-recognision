@@ -1,19 +1,9 @@
 from matplotlib import pyplot
 import cv2
 import numpy
+import math
+from card_processing import process_card
 
-# cards = [
-#     './cards/cards1.png',
-#     './cards/cards2.jpg',
-#     './cards/cards3.jpg',
-#     './cards/cards4.jpg',
-#     './cards/cards5.jpg',
-#     './cards/cards6.jpg',
-#     './cards/cards7.jpg',
-#     './cards/cards8.jpg',
-#     './cards/cards9.jpg',
-#     './cards/cards10.jpg',
-# ]
 cards = [
     './cardsv2/cards1.png',
     './cardsv2/cards2.jpg',
@@ -30,6 +20,7 @@ cards = [
     './cardsv2/card14.JPG',
     './cardsv2/card15.JPG',
 ]
+
 
 def order_points(points):
     rect = numpy.zeros((4, 2), dtype = "float32")
@@ -51,23 +42,81 @@ def order_points(points):
         rect2[3] = rect[2]
         return rect2
 
-def extract_rect(image, contours, idx):
-    epsilon = 0.01*cv2.arcLength(contours[idx], True)
-    approx = cv2.approxPolyDP(contours[idx], epsilon, True)
-    approx = order_points(approx)
-    approx = approx.astype(numpy.float32)
+def extract_poly(contour):
+    epsilon = 0.05*cv2.arcLength(contour, True)
+    return cv2.approxPolyDP(contour, epsilon, True)
 
-    h = numpy.array([[0,0],[749,0],[749,999],[0,999]], numpy.float32)
-    transform = cv2.getPerspectiveTransform(approx, h)
+def extract_rect(contour):
+    rect = cv2.minAreaRect(contour)
+    return numpy.int0(map(lambda i: [i], cv2.boxPoints(rect)))
 
-    approx = approx.astype(numpy.int32)
+def filterout_bg(image, foreground, add=False):
     mask = numpy.zeros_like(image)
-    cv2.drawContours(mask, contours, idx, [255, 255, 255], -1)
     out = numpy.zeros_like(image)
+    kernel = numpy.ones((50,50), numpy.uint8)
+    cv2.drawContours(mask, [foreground], -1, [255, 255, 255], -1)
+    if (add):
+        mask = cv2.dilate(mask, kernel, iterations = 4)
     out[mask == 255] = image[mask == 255]
-    wrap = cv2.warpPerspective(out, transform, (750, 1000))
-    return wrap
+    return out
+    
+def transform_rect(image, rect, add=False):
+    rect = order_points(rect)
+    rect = rect.astype(numpy.float32)
 
+    width = 750
+    height = 1000
+    h = numpy.array([[0,0],[749,0],[749,999],[0,999]], numpy.float32)
+
+    if (add):
+        h = numpy.array([[25,25],[774,25],[774,1024],[25,1024]], numpy.float32)
+        width = 800
+        height = 1050
+
+    transform = cv2.getPerspectiveTransform(rect, h)
+    return cv2.warpPerspective(image, transform, (width, height))
+
+def get_contoursHSV(image, factor, area, use_mean=True):
+    height, width, _ = image.shape
+    size = max(width, height)
+    h, s, v = cv2.split(cv2.cvtColor(image, cv2.COLOR_BGR2HSV))
+    mean1 = numpy.mean(s) if use_mean else 1
+    mean2 = numpy.mean(v) if use_mean else 1
+
+    out = numpy.zeros_like(image)
+    out2 = numpy.zeros_like(image)
+
+    flag, thresh1 = cv2.threshold(s, 110, 255, cv2.THRESH_BINARY_INV)
+    flag, thresh2 = cv2.threshold(v, mean2, 255, cv2.THRESH_BINARY)
+
+    thresh = cv2.bitwise_and(thresh1, thresh2)
+
+    out[thresh == 255] = image[thresh == 255]
+    out2[thresh == 255] = image[thresh == 255]
+
+
+    _, contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    max_area = max(map(lambda c: cv2.contourArea(c), contours))
+    contours = filter(lambda c: cv2.contourArea(c) > area * max_area, contours)
+    return contours
+    
+def get_contours(image, factor, area, use_mean=True):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (1,1), 1000)
+    mean = numpy.mean(gray) if use_mean else 1
+    print(mean)
+    flag, thresh = cv2.threshold(blur, factor*mean, 255, cv2.THRESH_BINARY)    
+
+    _, contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    max_area = max(map(lambda c: cv2.contourArea(c), contours))
+    contours = filter(lambda c: cv2.contourArea(c) > area * max_area, contours)
+    return contours
+
+def extract_card(image, contour):
+    boudingQuad = extract_poly(contour)
+    foreground = transform_rect(filterout_bg(image, boudingQuad), boudingQuad)
+
+    return foreground
 
 def main(): 
     fig = pyplot.figure(figsize=(40, 40))
@@ -76,28 +125,20 @@ def main():
     for idx in range(len(cards)):
         card_file_name = cards[idx]
         card = cv2.imread(card_file_name)
-        gray = cv2.cvtColor(card, cv2.COLOR_BGR2GRAY)
-        blur = cv2.GaussianBlur(gray, (1,1), 1000)
-        mean = numpy.mean(card)
-        flag, thresh = cv2.threshold(blur, 1.45*mean, 255, cv2.THRESH_BINARY)
-
-        _, contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        max_area = max(map(lambda c: cv2.contourArea(c), contours))
-        contours = filter(lambda c: cv2.contourArea(c) > .1 * max_area, contours)
-        
+        contours = get_contoursHSV(card, 1.45, .3, True)       
       
 
         picture = fig.add_subplot(16, 5, 5*idx + 1)
         picture.axis('off')
         pyplot.imshow(cv2.cvtColor(card, cv2.COLOR_BGR2RGB))
         for ci in range(len(contours)):
-            single_card_rect = extract_rect(card, contours, ci)
+            single_card_rect = extract_card(card, contours[ci])
+            if (len(single_card_rect) == 0): continue
+            processed = process_card(single_card_rect)
             picture = fig.add_subplot(16, 5, 5*idx + 2 + ci)
             picture.axis('off')
-            pyplot.imshow(cv2.cvtColor(single_card_rect, cv2.COLOR_BGR2RGB))
+            pyplot.imshow(cv2.cvtColor(processed, cv2.COLOR_BGR2RGB))
 
     fig.savefig("result.pdf")
-
-
 
 main()
