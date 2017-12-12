@@ -4,24 +4,6 @@ import numpy
 import math
 from card_processing import process_card
 
-cards = [
-    './cardsv2/cards1.png',
-    './cardsv2/cards2.jpg',
-    './cardsv2/card3.jpg',
-    './cardsv2/card4.jpg',
-    './cardsv2/card5.JPG',
-    './cardsv2/card6.JPG',
-    './cardsv2/card7.JPG',
-    './cardsv2/card8.JPG',
-    './cardsv2/card9.JPG',
-    './cardsv2/card11.JPG',
-    './cardsv2/card12.JPG',
-    './cardsv2/card13.JPG',
-    './cardsv2/card14.JPG',
-    './cardsv2/card15.JPG',
-]
-
-
 def order_points(points):
     rect = numpy.zeros((4, 2), dtype = "float32")
     rect2 = numpy.zeros((4, 2), dtype = "float32")
@@ -122,19 +104,16 @@ def main():
     fig = pyplot.figure(figsize=(40, 40))
     pyplot.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.01, hspace=0)
 
-    for idx in range(len(cards)):
-        card_file_name = cards[idx]
-        card = cv2.imread(card_file_name)
-        contours = get_contoursHSV(card, 1.45, .3, True)       
-      
-
+    for idx in range(20):
+        card = cv2.imread("./cardsv2/card"+str(idx)+".JPG")
+        contours = get_contoursHSV(card, 1.45, .3, True)    
         picture = fig.add_subplot(16, 5, 5*idx + 1)
         picture.axis('off')
         pyplot.imshow(cv2.cvtColor(card, cv2.COLOR_BGR2RGB))
         for ci in range(len(contours)):
             single_card_rect = extract_card(card, contours[ci])
             if (len(single_card_rect) == 0): continue
-            processed = process_card(single_card_rect)
+            processed = process_card(single_card_rect)            
             picture = fig.add_subplot(16, 5, 5*idx + 2 + ci)
             picture.axis('off')
             pyplot.imshow(cv2.cvtColor(processed, cv2.COLOR_BGR2RGB))
