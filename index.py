@@ -104,7 +104,7 @@ def main():
     fig = pyplot.figure(figsize=(40, 40))
     pyplot.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.01, hspace=0)
 
-    for idx in range(20):
+    for idx in range(16):
         card = cv2.imread("./cardsv2/card"+str(idx)+".JPG")
         contours = get_contoursHSV(card, 1.45, .3, True)    
         picture = fig.add_subplot(16, 5, 5*idx + 1)
