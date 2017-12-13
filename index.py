@@ -39,7 +39,7 @@ def filterout_bg(image, foreground, add=False):
     cv2.drawContours(mask, [foreground], -1, [255, 255, 255], -1)
     if (add):
         mask = cv2.dilate(mask, kernel, iterations = 4)
-    out[mask == 255] = image[mask == 255]
+    out[mask == 255] = image[mask == 255] 
     return out
     
 def transform_rect(image, rect, add=False):
@@ -73,10 +73,9 @@ def get_contoursHSV(image, factor, area, use_mean=True):
 
     thresh = cv2.bitwise_and(thresh1, thresh2)
 
-    out[thresh == 255] = image[thresh == 255]
-    out2[thresh == 255] = image[thresh == 255]
-
-
+    kernel = numpy.ones((10,10), numpy.uint8)
+    thresh = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
+    
     _, contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     max_area = max(map(lambda c: cv2.contourArea(c), contours))
     contours = filter(lambda c: cv2.contourArea(c) > area * max_area, contours)
@@ -86,7 +85,6 @@ def get_contours(image, factor, area, use_mean=True):
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(gray, (1,1), 1000)
     mean = numpy.mean(gray) if use_mean else 1
-    print(mean)
     flag, thresh = cv2.threshold(blur, factor*mean, 255, cv2.THRESH_BINARY)    
 
     _, contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -104,17 +102,17 @@ def main():
     fig = pyplot.figure(figsize=(40, 40))
     pyplot.subplots_adjust(left=None, bottom=None, right=None, top=None, wspace=0.01, hspace=0)
 
-    for idx in range(16):
+    for idx in range(10, 20):
         card = cv2.imread("./cardsv2/card"+str(idx)+".JPG")
         contours = get_contoursHSV(card, 1.45, .3, True)    
-        picture = fig.add_subplot(16, 5, 5*idx + 1)
+        picture = fig.add_subplot(20, 5, 5*(idx-10) + 1)
         picture.axis('off')
         pyplot.imshow(cv2.cvtColor(card, cv2.COLOR_BGR2RGB))
         for ci in range(len(contours)):
             single_card_rect = extract_card(card, contours[ci])
             if (len(single_card_rect) == 0): continue
             processed = process_card(single_card_rect)            
-            picture = fig.add_subplot(16, 5, 5*idx + 2 + ci)
+            picture = fig.add_subplot(20, 5, 5*(idx-10) + 2 + ci)
             picture.axis('off')
             pyplot.imshow(cv2.cvtColor(processed, cv2.COLOR_BGR2RGB))
 
